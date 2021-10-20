@@ -2,7 +2,7 @@ import numpy as np
 import cv2 as cv
 
 chessboard_size = (7, 6)  # 9x6
-file_path = 'E:\\Workspace\\CITIS\\VMS\\+-1\\MS_Record\\2021-10-06\\cam1\\'
+file_path = 'E:\\Workspace\\CALIB\\VMS\\+-1\\MS_Record\\2021-10-06\\cam1\\'
 file_name = '+-1_20211006-160404_1_167.avi'
 
 # termination criteria
