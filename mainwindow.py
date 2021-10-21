@@ -1,11 +1,7 @@
-import sys
-
-from PyQt5.QtWidgets import QDialog, QMainWindow, QPushButton
+from PyQt5.QtWidgets import QMainWindow, QPushButton, QInputDialog
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
-
 from camera import Camera
-from dialog import Dialog
 
 
 class MainWindow(QMainWindow):
@@ -41,13 +37,12 @@ class MainWindow(QMainWindow):
         # pushButton_2.setObjectName("pushButton_2")
         horizontalLayout.addWidget(pushButton_2)
 
-        listWidget = QtWidgets.QListWidget(verticalLayoutWidget)
-        listWidget.setObjectName("listWidget")
-        item = QtWidgets.QListWidgetItem("Камера 1")
-        listWidget.addItem(item)
-        item = QtWidgets.QListWidgetItem("Камера 2")
-        listWidget.addItem(item)
-        verticalLayout.addWidget(listWidget)
+        self.listWidget = QtWidgets.QListWidget(verticalLayoutWidget)
+        self.listWidget.setObjectName("listWidget")
+        self.collect_data('/Cameras', self.listWidget)
+
+
+        verticalLayout.addWidget(self.listWidget)
 
         verticalLayoutWidget_2 = QtWidgets.QWidget(self.centralwidget)
         verticalLayoutWidget_2.setGeometry(QtCore.QRect(330, 10, 532, 591))
@@ -169,11 +164,19 @@ class MainWindow(QMainWindow):
         QtCore.QMetaObject.connectSlotsByName(self)
 
     def create_cam(self):
-        dlg = Dialog()
+        dlg = QInputDialog()
+        dlg.setWindowTitle('Добавление')
+        dlg.setFixedSize(270, 120)
+        dlg.setLabelText("Введите название камеры.")
         dlg.exec()
-        if dlg.name not in self.cam_list:
-            self.cam_lst.append(dlg.name)
-            new_cam = Camera(dlg.name)
+        cam_name = dlg.textValue()
+        if cam_name is not None and dlg.result():
+            if cam_name not in [cam.cam_name for cam in self.cam_lst] and cam_name != '':
+                item = QtWidgets.QListWidgetItem(cam_name)
+                self.listWidget.addItem(item)
+
+                new_cam = Camera(cam_name)
+                self.cam_lst.append(new_cam)
 
     def delete_cam(self):
         None
@@ -192,3 +195,14 @@ class MainWindow(QMainWindow):
 
     def calibrate_cam(self):
         None
+
+    def collect_data(self, path, listWidget):
+        import os
+
+        for root, dirs, files in os.walk(".", topdown=False):
+            for name in dirs:
+                print(os.path.join(root, name))
+        # item = QtWidgets.QListWidgetItem("Камера 1")
+        # listWidget.addItem(item)
+        # item = QtWidgets.QListWidgetItem("Камера 2")
+        # listWidget.addItem(item)
