@@ -7,6 +7,7 @@ class Camera:
     imgpoints = []  # 2d points in image plane.
 
     videos: list = []
+    frames: list = []
 
     def __init__(self, cam_name) -> None:
         self.cam_name = cam_name

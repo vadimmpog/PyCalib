@@ -3,11 +3,10 @@ import cv2 as cv
 
 
 class CalibratedVid:
-    frames = []
 
-    def __init__(self, file_path, file_name, chessboard_size) -> None:
+    def __init__(self, file_path, chessboard_size) -> None:
         self.file_path = file_path
-        self.file_name = file_name
+        # self.file_name = file_name
         self.chessboard_size = chessboard_size
         self.criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
         self.objp = np.zeros((self.chessboard_size[0] * self.chessboard_size[1], 3), np.float32)
@@ -50,9 +49,9 @@ class CalibratedVid:
     #     ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(self.objpoints, self.imgpoints, gray.shape[::-1], None, None)
     #     newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
 
-    def undistort(self):
-        dst = cv.undistort(img, mtx, dist, None, newcameramtx)
-        # crop the image
-        x, y, w, h = roi
-        dst = dst[y:y + h, x:x + w]
-        cv.imwrite('calibresult.png', dst)
+    # def undistort(self):
+    #     dst = cv.undistort(img, mtx, dist, None, newcameramtx)
+    #     # crop the image
+    #     x, y, w, h = roi
+    #     dst = dst[y:y + h, x:x + w]
+    #     cv.imwrite('calibresult.png', dst)
