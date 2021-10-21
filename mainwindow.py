@@ -1,6 +1,6 @@
 import os
 import shutil
-
+import cv2 as cv
 from PyQt5.QtWidgets import QMainWindow, QPushButton, QInputDialog, QFileDialog, QListWidget, QListWidgetItem
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
@@ -212,19 +212,22 @@ class MainWindow(QMainWindow):
             self.clear_list("vid_list")
             self.clear_list("frames_list")
             label.setText('Название камеры')
-#######
+####### объект видео добавить в объект камеры?
     def add_video(self):
         list_widget = self.findChild(QListWidget, 'cam_list')
+        vid_lst = self.findChild(QListWidget, 'vid_list')
         cam = list_widget.selectedItems()
         if cam:
             cam_name = cam[0].text()
-            path = QFileDialog.getOpenFileName(self, "Выберите видео", "", "Video Files (*.mp4 *.avi)")[0]
-            ### объект видео добавить в объект камеры?
+            path = QFileDialog.getOpenFileName(self, "Выберите видео", "", "Video Files (*.mp4 *.avi *.mkv *.mpg)")[0]
             vid_name = path.split('/')[-1]
+            # if vid_name not in :
             self.create_dir(f'{self.dir_path}\\Cameras\\{cam_name}\\videos', vid_name)
-            #load video
+
+            frames_count = self.extract_images(path, True, f'{self.dir_path}\\Cameras\\{cam_name}\\videos\\{vid_name}')
+
             item = QListWidgetItem(vid_name)
-            self.findChild(QListWidget, 'vid_list').addItem(item)
+            vid_lst.addItem(item)
         else:
             print('Error')
 #######
@@ -287,3 +290,18 @@ class MainWindow(QMainWindow):
         for dir in os.listdir(self.dir_path + path):
             item = QListWidgetItem(dir)
             list_widget.addItem(item)
+
+    def extract_images(self, path_in, save=False, path_out=None):
+        count = 0
+        # images = []
+        vidcap = cv.VideoCapture(path_in)
+        success, image = vidcap.read()
+        success = True
+        while success:
+            vidcap.set(cv.CAP_PROP_POS_MSEC, (count * 1000))  # added this line
+            # frames.append(image)
+            if save:
+                cv.imwrite(path_out + "\\frame%d.jpg" % count, image)  # save frame as JPEG file
+            success, image = vidcap.read()
+            count = count + 1
+        return count - 1
