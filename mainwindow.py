@@ -1,3 +1,6 @@
+import os
+import shutil
+
 from PyQt5.QtWidgets import QMainWindow, QPushButton, QInputDialog
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
@@ -5,10 +8,10 @@ from camera import Camera
 
 
 class MainWindow(QMainWindow):
-    default_save_path = ''
     cam_lst = []
     vid_lst = []
     frames_lst = []
+    dir_path = os.getcwd()
 
     def __init__(self):
         super().__init__()
@@ -26,23 +29,17 @@ class MainWindow(QMainWindow):
         horizontalLayout = QtWidgets.QHBoxLayout()
         # horizontalLayout.setObjectName("horizontalLayout")
 
-        self.pushButton = QPushButton(verticalLayoutWidget, text="Добавить камеру", objectName="pushButton")
-        # self.pushButton.setObjectName("pushButton")
-        self.pushButton.clicked.connect(self.create_cam)
-        horizontalLayout.addWidget(self.pushButton)
+        pushButton = QPushButton(verticalLayoutWidget, text="Добавить камеру", objectName="create_cam")
+        horizontalLayout.addWidget(pushButton)
 
         verticalLayout.addLayout(horizontalLayout)
 
-        pushButton_2 = QPushButton(verticalLayoutWidget, text="Удалить камеру", objectName="pushButton_2")
-        # pushButton_2.setObjectName("pushButton_2")
+        pushButton_2 = QPushButton(verticalLayoutWidget, text="Удалить камеру", objectName="delete_cam")
         horizontalLayout.addWidget(pushButton_2)
 
-        self.listWidget = QtWidgets.QListWidget(verticalLayoutWidget)
-        self.listWidget.setObjectName("listWidget")
-        self.collect_data('/Cameras', self.listWidget)
-
-
-        verticalLayout.addWidget(self.listWidget)
+        listWidget = QtWidgets.QListWidget(verticalLayoutWidget)
+        listWidget.setObjectName("cam_list")
+        verticalLayout.addWidget(listWidget)
 
         verticalLayoutWidget_2 = QtWidgets.QWidget(self.centralwidget)
         verticalLayoutWidget_2.setGeometry(QtCore.QRect(330, 10, 532, 591))
@@ -53,7 +50,7 @@ class MainWindow(QMainWindow):
         verticalLayout_2.setObjectName("verticalLayout_2")
 
         label = QtWidgets.QLabel(verticalLayoutWidget_2, text="Название камеры")
-        label.setObjectName("label")
+        label.setObjectName("cam_name")
         verticalLayout_2.addWidget(label)
 
         horizontalLayout_6 = QtWidgets.QHBoxLayout()
@@ -78,10 +75,6 @@ class MainWindow(QMainWindow):
         listWidget_3 = QtWidgets.QListWidget(verticalLayoutWidget_2)
         listWidget_3.setObjectName("listWidget_3")
 
-        item = QtWidgets.QListWidgetItem("Видео 1")
-        listWidget_3.addItem(item)
-        item = QtWidgets.QListWidgetItem("Видео 2")
-        listWidget_3.addItem(item)
         verticalLayout_4.addWidget(listWidget_3)
 
         horizontalLayout_6.addLayout(verticalLayout_4)
@@ -103,10 +96,7 @@ class MainWindow(QMainWindow):
 
         listWidget_4 = QtWidgets.QListWidget(verticalLayoutWidget_2)
         listWidget_4.setObjectName("listWidget_4")
-        item = QtWidgets.QListWidgetItem("Кадр 1")
-        listWidget_4.addItem(item)
-        item = QtWidgets.QListWidgetItem("Кадр 2")
-        listWidget_4.addItem(item)
+
         verticalLayout_7.addWidget(listWidget_4)
 
         horizontalLayout_6.addLayout(verticalLayout_7)
@@ -162,6 +152,25 @@ class MainWindow(QMainWindow):
 
         menubar.addAction(menu.menuAction())
         QtCore.QMetaObject.connectSlotsByName(self)
+        self.set_data()
+
+    def set_data(self):
+        self.create_dir(self.dir_path, 'Cameras')
+        self.findChild(QPushButton, 'create_cam').clicked.connect(self.create_cam)
+        self.findChild(QPushButton, 'delete_cam').clicked.connect(self.delete_cam)
+        listWidget_3 = self.findChild(QtWidgets.QListWidget, 'cam_list')
+        label = self.findChild(QtWidgets.QLabel, 'cam_name')
+        self.collect_data('\\Cameras', "cam_list")
+        if listWidget_3.item(0):
+            cam_name = listWidget_3.item(0).text()
+            label.setText(cam_name)
+            self.collect_data(f'\\Cameras\\{cam_name}\\videos', "listWidget_3")
+            self.collect_data(f'\\Cameras\\{cam_name}\\frames', "listWidget_3")
+
+    def create_dir(self, path, name):
+        abs_path = path + '\\' + name
+        if not os.path.exists(abs_path):
+            os.mkdir(abs_path)
 
     def create_cam(self):
         dlg = QInputDialog()
@@ -173,13 +182,25 @@ class MainWindow(QMainWindow):
         if cam_name is not None and dlg.result():
             if cam_name not in [cam.cam_name for cam in self.cam_lst] and cam_name != '':
                 item = QtWidgets.QListWidgetItem(cam_name)
-                self.listWidget.addItem(item)
+                self.findChild(QtWidgets.QListWidget, 'cam_list').addItem(item)
 
                 new_cam = Camera(cam_name)
                 self.cam_lst.append(new_cam)
+                self.create_dir(self.dir_path + '\\Cameras', cam_name)
+                self.create_dir(f'{self.dir_path}\\Cameras\\{cam_name}', 'videos')
+                self.create_dir(f'{self.dir_path}\\Cameras\\{cam_name}', 'frames')
+                self.create_dir(f'{self.dir_path}\\Cameras\\{cam_name}', 'results')
+                self.create_dir(f'{self.dir_path}\\Cameras\\{cam_name}', 'corners')
+                self.create_dir(f'{self.dir_path}\\Cameras\\{cam_name}', 'undistortions')
 
     def delete_cam(self):
-        None
+        ########### Вы уверены, это удалит всю информацию о камере???
+        cam_list = self.findChild(QtWidgets.QListWidget, 'cam_list')
+        cam_name = cam_list.selectedItems()[0].text()
+        cam_list.takeItem(cam_list.row(cam_list.selectedItems()[0]))
+        path = self.dir_path + '\\Cameras\\' + cam_name
+        if os.path.exists(path):
+            shutil.rmtree(path)
 
     def add_video(self):
         None
@@ -196,13 +217,11 @@ class MainWindow(QMainWindow):
     def calibrate_cam(self):
         None
 
-    def collect_data(self, path, listWidget):
-        import os
+    def collect_data(self, path, list_widget_name):
+        list_widget = self.findChild(QtWidgets.QListWidget, list_widget_name)
+        for dir in os.listdir(self.dir_path + path):
+            item = QtWidgets.QListWidgetItem(dir)
+            list_widget.addItem(item)
 
-        for root, dirs, files in os.walk(".", topdown=False):
-            for name in dirs:
-                print(os.path.join(root, name))
-        # item = QtWidgets.QListWidgetItem("Камера 1")
-        # listWidget.addItem(item)
-        # item = QtWidgets.QListWidgetItem("Камера 2")
-        # listWidget.addItem(item)
+    def load_cam_data(self, cam_name):
+        None
