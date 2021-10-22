@@ -1,10 +1,15 @@
 import os
 import shutil
 import cv2 as cv
+import imutils
+import numpy as np
 from PyQt5.QtWidgets import QMainWindow, QPushButton, QInputDialog, QFileDialog, QListWidget, QListWidgetItem
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
+from imutils.video import FileVideoStream
+
 from camera import Camera
+from images_dialog import ImagesDialog
 
 
 class MainWindow(QMainWindow):
@@ -57,22 +62,6 @@ class MainWindow(QMainWindow):
 
         verticalLayout_4 = QtWidgets.QVBoxLayout()
         verticalLayout_4.setObjectName("verticalLayout_4")
-
-        horizontalLayout_5 = QtWidgets.QHBoxLayout()
-        horizontalLayout_5.setObjectName("horizontalLayout_5")
-
-        pushButton_5 = QPushButton(verticalLayoutWidget_2, text="Добавить видео", objectName='add_video')
-        horizontalLayout_5.addWidget(pushButton_5)
-
-        pushButton_6 = QPushButton(verticalLayoutWidget_2, text="Удалить видео", objectName='delete_video')
-        horizontalLayout_5.addWidget(pushButton_6)
-
-        verticalLayout_4.addLayout(horizontalLayout_5)
-
-        list_widget_3 = QListWidget(verticalLayoutWidget_2)
-        list_widget_3.setObjectName("vid_list")
-
-        verticalLayout_4.addWidget(list_widget_3)
 
         horizontalLayout_6.addLayout(verticalLayout_4)
 
@@ -138,23 +127,23 @@ class MainWindow(QMainWindow):
 
         action = QtWidgets.QAction(self, text="Путь сохранения")
         action.setObjectName("action")
-        menu.addAction(action)
+        menu.addAction(action),
 
         menubar.addAction(menu.menuAction())
         QtCore.QMetaObject.connectSlotsByName(self)
         self.set_logic()
 
     def set_logic(self):
-        self.create_dir(self.dir_path, 'Cameras')
+        self.create_dir(self.dir_path, 'cameras')
         self.findChild(QPushButton, 'create_cam').clicked.connect(self.create_cam)
         self.findChild(QPushButton, 'delete_cam').clicked.connect(self.delete_cam)
-        self.findChild(QPushButton, 'add_video').clicked.connect(self.add_video)
-        self.findChild(QPushButton, 'delete_video').clicked.connect(self.delete_video)
+        self.findChild(QPushButton, 'choose_frames').clicked.connect(self.add_video_frames)
         # self.findChild(QPushButton, 'add_frame').clicked.connect(self.add_frame)
         self.findChild(QPushButton, 'delete_frame').clicked.connect(self.delete_frame)
         list_widget = self.findChild(QListWidget, 'cam_list')
         list_widget.itemClicked.connect(self.set_cam_data)
-        self.collect_data('\\Cameras', "cam_list")
+        self.collect_data('\\cameras', "cam_list")
+
 #######
     def set_cam_data(self):
         list_widget = self.findChild(QListWidget, 'cam_list')
@@ -163,10 +152,8 @@ class MainWindow(QMainWindow):
             cam_name = item.text()
             label = self.findChild(QtWidgets.QLabel, 'cam_name')
             label.setText(cam_name)
-            self.clear_list("vid_list")
             self.clear_list("frames_list")
-            self.collect_data(f'\\Cameras\\{cam_name}\\videos', "vid_list")
-            self.collect_data(f'\\Cameras\\{cam_name}\\frames', "frames_list")
+            self.collect_data(f'\\cameras\\{cam_name}\\frames', "frames_list")
 
     def clear_list(self, list_name):
         list_widget = self.findChild(QListWidget, list_name)
@@ -176,6 +163,7 @@ class MainWindow(QMainWindow):
         abs_path = path + '\\' + name
         if not os.path.exists(abs_path):
             os.mkdir(abs_path)
+
 #######
     def create_cam(self):
         dlg = QInputDialog()
@@ -192,68 +180,58 @@ class MainWindow(QMainWindow):
                 new_cam = Camera(cam_name)#####
                 self.cam_lst.append(new_cam) ### ???????????
 
-                self.create_dir(self.dir_path + '\\Cameras', cam_name)
-                self.create_dir(f'{self.dir_path}\\Cameras\\{cam_name}', 'videos')
-                self.create_dir(f'{self.dir_path}\\Cameras\\{cam_name}', 'frames')
-                self.create_dir(f'{self.dir_path}\\Cameras\\{cam_name}', 'results')
-                self.create_dir(f'{self.dir_path}\\Cameras\\{cam_name}', 'corners')
-                self.create_dir(f'{self.dir_path}\\Cameras\\{cam_name}', 'undistortions')
+                self.create_dir(self.dir_path + '\\cameras', cam_name)
+                self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'videos')
+                self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'frames')
+                self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'results')
+                self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'corners')
+                self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'undistortions')
+
 #######
     def delete_cam(self):
         ########### Вы уверены, это удалит всю информацию о камере???
         cam_list = self.findChild(QListWidget, 'cam_list')
         cam_name = cam_list.selectedItems()[0].text()
         cam_list.takeItem(cam_list.row(cam_list.selectedItems()[0]))
-        path = self.dir_path + '\\Cameras\\' + cam_name
+        path = self.dir_path + '\\cameras\\' + cam_name
         if os.path.exists(path):
             shutil.rmtree(path)
         label = self.findChild(QtWidgets.QLabel, 'cam_name')
         if label.text() == cam_name:
-            self.clear_list("vid_list")
             self.clear_list("frames_list")
             label.setText('Название камеры')
+
 ####### объект видео добавить в объект камеры?
-    def add_video(self):
+    def add_video_frames(self):
         list_widget = self.findChild(QListWidget, 'cam_list')
-        vid_lst = self.findChild(QListWidget, 'vid_list')
+        cam = list_widget.selectedItems()
+        if cam:
+            path = QFileDialog.getOpenFileName(self, "Выберите видео", "", "Video Files (*.mp4 *.avi *.mkv *.mpg)")[0]
+            frames = self.extract_images(path)
+            # new_frames = []
+            # for image in frames:
+            #     new_frames.append(cv.resize(image, dsize=(641, 391), interpolation=cv.INTER_CUBIC))
+            dialog = ImagesDialog(frames)
+            dialog.exec()
+            print(dialog.selected_frames)
+            # cv.imwrite(path_out + "\\frame%d.jpg" % count, image)
+
+        else:
+            print('Error')
+
+    def add_frame(self):
+        list_widget = self.findChild(QListWidget, 'cam_list')
         cam = list_widget.selectedItems()
         if cam:
             cam_name = cam[0].text()
-            path = QFileDialog.getOpenFileName(self, "Выберите видео", "", "Video Files (*.mp4 *.avi *.mkv *.mpg)")[0]
+            path = QFileDialog.getOpenFileName(self, "Выберите видео", "C:\\", "Video Files (*.mp4 *.avi)")[0]
+            ### объект видео добавить в объект камеры?
             vid_name = path.split('/')[-1]
-            # if vid_name not in :
-            self.create_dir(f'{self.dir_path}\\Cameras\\{cam_name}\\videos', vid_name)
-
-            frames_count = self.extract_images(path, True, f'{self.dir_path}\\Cameras\\{cam_name}\\videos\\{vid_name}')
-
+            self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}\\videos', vid_name)
             item = QListWidgetItem(vid_name)
-            vid_lst.addItem(item)
+            self.findChild(QListWidget, 'vid_list').addItem(item)
         else:
             print('Error')
-#######
-    def delete_video(self):
-        cam_list = self.findChild(QListWidget, 'cam_list')
-        vid_list = self.findChild(QListWidget, 'vid_list')
-        cam_name = cam_list.selectedItems()[0].text()
-        vid_name = vid_list.selectedItems()[0].text()
-        vid_list.takeItem(vid_list.row(vid_list.selectedItems()[0]))
-        path = f'{self.dir_path}\\Cameras\\{cam_name}\\videos\\{vid_name}'
-        if os.path.exists(path):
-            shutil.rmtree(path)
-
-    # def add_frame(self):
-        # list_widget = self.findChild(QListWidget, 'cam_list')
-        # cam = list_widget.selectedItems()
-        # if cam:
-        #     cam_name = cam[0].text()
-        #     path = QFileDialog.getOpenFileName(self, "Выберите видео", "", "Video Files (*.mp4 *.avi)")[0]
-        #     ### объект видео добавить в объект камеры?
-        #     vid_name = path.split('/')[-1]
-        #     self.create_dir(f'{self.dir_path}\\Cameras\\{cam_name}\\videos', vid_name)
-        #     item = QListWidgetItem(vid_name)
-        #     self.findChild(QListWidget, 'vid_list').addItem(item)
-        # else:
-        #     print('Error')
 
     #######
     def delete_frame(self, all=False):
@@ -261,20 +239,43 @@ class MainWindow(QMainWindow):
         cam_name = cam_list.selectedItems()[0].text()
         frame_list = self.findChild(QListWidget, 'frame_list')
         if all:
-            path = f'{self.dir_path}\\Cameras\\{cam_name}\\frames'
+            path = f'{self.dir_path}\\cameras\\{cam_name}\\frames'
             if os.path.exists(path):
                 shutil.rmtree(path)
-                self.create_dir(f'{self.dir_path}\\Cameras\\{cam_name}', 'frames')
+                self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'frames')
         else:
             cam_name = cam_list.selectedItems()[0].text()
             frame_name = frame_list.selectedItems()[0].text()
             frame_list.takeItem(frame_list.row(frame_list.selectedItems()[0]))
-            path = f'{self.dir_path}\\Cameras\\{cam_name}\\frames\\{frame_name}'
+            path = f'{self.dir_path}\\cameras\\{cam_name}\\frames\\{frame_name}'
             if os.path.exists(path):
                 os.remove(path)
 
     def show_corners(self):
         None
+
+    def collect_data(self, path, list_widget_name):
+        list_widget = self.findChild(QListWidget, list_widget_name)
+        for dir in os.listdir(self.dir_path + path):
+            item = QListWidgetItem(dir)
+            list_widget.addItem(item)
+
+    def extract_images(self, path_in):
+        frames = []
+        count = 0
+        fvs = FileVideoStream(path_in).start()
+        while fvs.more():
+            frame = fvs.read()
+            if frame is not None:
+                frame = imutils.resize(frame, width=450)
+                frame = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+                frame = np.dstack([frame, frame, frame])
+                count += 1
+                if count == 24:
+                    count = 0
+                    frames.append(frame)
+        fvs.stop()
+        return frames
 
     def show_undistortions(self):
         None
@@ -284,24 +285,3 @@ class MainWindow(QMainWindow):
 
     def calibrate_cam(self):
         None
-
-    def collect_data(self, path, list_widget_name):
-        list_widget = self.findChild(QListWidget, list_widget_name)
-        for dir in os.listdir(self.dir_path + path):
-            item = QListWidgetItem(dir)
-            list_widget.addItem(item)
-
-    def extract_images(self, path_in, save=False, path_out=None):
-        count = 0
-        # images = []
-        vidcap = cv.VideoCapture(path_in)
-        success, image = vidcap.read()
-        success = True
-        while success:
-            vidcap.set(cv.CAP_PROP_POS_MSEC, (count * 1000))  # added this line
-            # frames.append(image)
-            if save:
-                cv.imwrite(path_out + "\\frame%d.jpg" % count, image)  # save frame as JPEG file
-            success, image = vidcap.read()
-            count = count + 1
-        return count - 1

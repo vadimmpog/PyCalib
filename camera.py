@@ -6,7 +6,6 @@ class Camera:
     objpoints = []  # 3d point in real world space
     imgpoints = []  # 2d points in image plane.
 
-    videos: list = []
     frames: list = []
 
     def __init__(self, cam_name, chessboard_size=(7, 6)) -> None:
@@ -15,11 +14,6 @@ class Camera:
         self.objp = np.zeros((chessboard_size[0] * chessboard_size[1], 3), np.float32)
         self.objp[:, :2] = np.mgrid[0:chessboard_size[0], 0:chessboard_size[1]].T.reshape(-1, 2)
 
-
-
-    # def add_video(self, chessboard_size, file_path, vid_name):
-    #     new_vid = CalibratedVid(chessboard_size, file_path, vid_name)
-    #     self.videos.append(new_vid)
 
     # def choose_frames(self):  ########
     #     all_frames = []
