@@ -214,7 +214,7 @@ class MainWindow(QMainWindow):
                 if dialog.selected_frames:
                     for i in range(len(frames)):
                         if dialog.selected_frames[i]:
-                            frame_path = self.dir_path + '\\cameras\\' + cam[0].text() + '\\frames\\%s_%d.jpg' % (vid_name, i+1)
+                            frame_path = self.dir_path + '\\cameras\\' + cam[0].text() + '\\frames\\%d_%s.jpg' % (i+1, vid_name)
                             if not os.path.exists(frame_path):
                                 cv.imwrite(frame_path, frames[i])
                     self.collect_data(f'\\cameras\\{cam[0].text()}\\frames', "frames_list")
@@ -239,16 +239,15 @@ class MainWindow(QMainWindow):
     def delete_frame(self, all=False):
         cam_list = self.findChild(QListWidget, 'cam_list')
         cam_name = cam_list.selectedItems()[0].text()
-        frame_list = self.findChild(QListWidget, 'frame_list')
+        frames_list = self.findChild(QListWidget, 'frames_list')
         if all:
             path = f'{self.dir_path}\\cameras\\{cam_name}\\frames'
             if os.path.exists(path):
                 shutil.rmtree(path)
                 self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'frames')
         else:
-            cam_name = cam_list.selectedItems()[0].text()
-            frame_name = frame_list.selectedItems()[0].text()
-            frame_list.takeItem(frame_list.row(frame_list.selectedItems()[0]))
+            frame_name = frames_list.selectedItems()[0].text()
+            frames_list.takeItem(frames_list.row(frames_list.selectedItems()[0]))
             path = f'{self.dir_path}\\cameras\\{cam_name}\\frames\\{frame_name}'
             if os.path.exists(path):
                 os.remove(path)
@@ -286,4 +285,5 @@ class MainWindow(QMainWindow):
         None
 
     def calibrate_cam(self):
-        None
+        cam_list = self.findChild(QListWidget, 'cam_list')
+        cam_list.selectedItems()[0].text()

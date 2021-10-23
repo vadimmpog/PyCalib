@@ -135,7 +135,9 @@ dmypy.json
 .pyre/
 
 #generated sources
-.jpg
+cameras/
+*.jpg
+
 
 # pytype static type analyzer
 .pytype/
