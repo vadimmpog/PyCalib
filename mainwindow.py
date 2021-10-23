@@ -181,7 +181,6 @@ class MainWindow(QMainWindow):
                 self.cam_lst.append(new_cam) ### ???????????
 
                 self.create_dir(self.dir_path + '\\cameras', cam_name)
-                self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'videos')
                 self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'frames')
                 self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'results')
                 self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'corners')
@@ -207,15 +206,18 @@ class MainWindow(QMainWindow):
         cam = list_widget.selectedItems()
         if cam:
             path = QFileDialog.getOpenFileName(self, "Выберите видео", "", "Video Files (*.mp4 *.avi *.mkv *.mpg)")[0]
-            frames = self.extract_images(path)
-            # new_frames = []
-            # for image in frames:
-            #     new_frames.append(cv.resize(image, dsize=(641, 391), interpolation=cv.INTER_CUBIC))
-            dialog = ImagesDialog(frames)
-            dialog.exec()
-            print(dialog.selected_frames)
-            # cv.imwrite(path_out + "\\frame%d.jpg" % count, image)
-
+            if path:
+                vid_name = path[path.rfind('/') + 1:path.rfind('.')]
+                frames = self.extract_images(path)
+                dialog = ImagesDialog(frames)
+                dialog.exec()
+                if dialog.selected_frames:
+                    for i in range(len(frames)):
+                        if dialog.selected_frames[i]:
+                            frame_path = self.dir_path + '\\cameras\\' + cam[0].text() + '\\frames\\%s_%d.jpg' % (vid_name, i+1)
+                            if not os.path.exists(frame_path):
+                                cv.imwrite(frame_path, frames[i])
+                    self.collect_data(f'\\cameras\\{cam[0].text()}\\frames', "frames_list")
         else:
             print('Error')
 
