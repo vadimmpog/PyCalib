@@ -1,8 +1,10 @@
 import os
 import shutil
+import time
+from functools import partial
+
 import cv2 as cv
-import imutils
-import numpy as np
+from PyQt5.QtCore import QThread
 from PyQt5.QtWidgets import QMainWindow, QPushButton, QInputDialog, QFileDialog, QListWidget, QListWidgetItem
 from PyQt5 import QtWidgets
 from PyQt5 import QtCore
@@ -12,24 +14,21 @@ from calibrator import Calibrator
 
 
 class MainWindow(QMainWindow):
-
     dir_path = os.getcwd()
 
     def __init__(self):
         super().__init__()
+        self.thread_dict = {}
 
+    def setup_ui(self):
         self.setWindowTitle("Калибровка камер")
-        self.setFixedSize(880, 660)
+        self.setFixedSize(720, 620)
         centralwidget = QtWidgets.QWidget(self, objectName="centralwidget")
-        # self.centralwidget.setObjectName("centralwidget")
         verticalLayoutWidget = QtWidgets.QWidget(centralwidget, objectName="verticalLayoutWidget")
-        verticalLayoutWidget.setGeometry(QtCore.QRect(10, 10, 293, 591))
-        # verticalLayoutWidget.setObjectName("verticalLayoutWidget")
+        verticalLayoutWidget.setGeometry(QtCore.QRect(10, 10, 210, 590))
         verticalLayout = QtWidgets.QVBoxLayout(verticalLayoutWidget)
         verticalLayout.setContentsMargins(0, 0, 0, 0)
-        # verticalLayout.setObjectName("verticalLayout")
         horizontalLayout = QtWidgets.QHBoxLayout()
-        # horizontalLayout.setObjectName("horizontalLayout")
 
         pushButton = QPushButton(verticalLayoutWidget, text="Добавить камеру", objectName="create_cam")
         horizontalLayout.addWidget(pushButton)
@@ -44,7 +43,7 @@ class MainWindow(QMainWindow):
         verticalLayout.addWidget(list_widget)
 
         verticalLayoutWidget_2 = QtWidgets.QWidget(centralwidget)
-        verticalLayoutWidget_2.setGeometry(QtCore.QRect(330, 10, 532, 591))
+        verticalLayoutWidget_2.setGeometry(QtCore.QRect(230, 10, 480, 591))
         verticalLayoutWidget_2.setObjectName("verticalLayoutWidget_2")
 
         verticalLayout_2 = QtWidgets.QVBoxLayout(verticalLayoutWidget_2)
@@ -86,17 +85,17 @@ class MainWindow(QMainWindow):
         verticalLayout_6 = QtWidgets.QVBoxLayout()
         verticalLayout_6.setObjectName("verticalLayout_6")
 
-        pushButton_7 = QPushButton(verticalLayoutWidget_2, text="Углы", objectName='corners')
-        verticalLayout_6.addWidget(pushButton_7)
-
-        pushButton_9 = QPushButton(verticalLayoutWidget_2, text="Дисторции", objectName='undistortions')
-        verticalLayout_6.addWidget(pushButton_9)
-
         pushButton_8 = QPushButton(verticalLayoutWidget_2, text="Выбрать кадры", objectName='choose_frames')
         verticalLayout_6.addWidget(pushButton_8)
 
-        pushButton_13 = QPushButton(verticalLayoutWidget_2, text="Результаты", objectName='results')
-        verticalLayout_6.addWidget(pushButton_13)
+        checkBox = QtWidgets.QCheckBox(verticalLayoutWidget_2, text='Выбрать все', objectName='all')
+        verticalLayout_6.addWidget(checkBox, alignment=QtCore.Qt.AlignTop)
+
+        pushButton_7 = QPushButton(verticalLayoutWidget_2, text="Углы", objectName='corners')
+        verticalLayout_6.addWidget(pushButton_7, alignment=QtCore.Qt.AlignBottom)
+
+        pushButton_9 = QPushButton(verticalLayoutWidget_2, text="Дисторции", objectName='undistortions')
+        verticalLayout_6.addWidget(pushButton_9)
 
         horizontalLayout_6.addLayout(verticalLayout_6)
         verticalLayout_2.addLayout(horizontalLayout_6)
@@ -123,13 +122,7 @@ class MainWindow(QMainWindow):
         statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self, statusbar)
 
-        action = QtWidgets.QAction(self, text="Путь сохранения")
-        action.setObjectName("action")
-        menu.addAction(action),
-
-        menubar.addAction(menu.menuAction())
         QtCore.QMetaObject.connectSlotsByName(self)
-        self.set_logic()
 
     def set_logic(self):
         self.create_dir(self.dir_path, 'cameras')
@@ -140,6 +133,7 @@ class MainWindow(QMainWindow):
         self.findChild(QPushButton, 'delete_frame').clicked.connect(self.delete_frame)
         self.findChild(QPushButton, 'calibration').clicked.connect(self.calibrate_cam)
         self.findChild(QPushButton, 'corners').clicked.connect(self.show_corners)
+        self.findChild(QPushButton, 'undistortions').clicked.connect(self.show_undistortions)
         list_widget = self.findChild(QListWidget, 'cam_list')
         list_widget.itemClicked.connect(self.set_cam_data)
         self.collect_data('\\cameras', "cam_list")
@@ -153,6 +147,7 @@ class MainWindow(QMainWindow):
             label.setText(cam_name)
             self.clear_list("frames_list")
             self.collect_data(f'\\cameras\\{cam_name}\\frames', "frames_list")
+            self.findChild(QPushButton, 'calibration').setEnabled(not cam_name in self.thread_dict.keys())
 
     def get_sel_cam(self):
         cam_list = self.findChild(QListWidget, 'cam_list')
@@ -187,7 +182,6 @@ class MainWindow(QMainWindow):
 
                 self.create_dir(self.dir_path + '\\cameras', cam_name)
                 self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'frames')
-                self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'results')
                 self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'corners')
                 self.create_dir(f'{self.dir_path}\\cameras\\{cam_name}', 'undistortions')
 
@@ -197,6 +191,9 @@ class MainWindow(QMainWindow):
         cam = self.get_sel_cam()
         if cam is not None:
             cam_name = cam.text()
+            if cam_name in self.thread_dict.keys():
+                self.thread_dict[cam_name][0].qiut()
+                self.thread_dict.pop(cam_name)
             cam_list.takeItem(cam_list.row(cam))
             path = self.dir_path + '\\cameras\\' + cam_name
             if os.path.exists(path):
@@ -209,36 +206,41 @@ class MainWindow(QMainWindow):
     def add_video_frames(self):
         cam = self.get_sel_cam()
         if cam:
-            path = QFileDialog.getOpenFileName(self, "Выберите видео", "C:/", "Video Files (*.mp4 *.avi *.mkv *.mpg)")[0]
+            path = QFileDialog.getOpenFileName(self, "Выберите видео", "C:/", "Video Files (*.mp4 *.avi *.mkv *.mpg)")[
+                0]
             cam_name = cam.text()
             if path:
                 vid_name = path[path.rfind('/') + 1:path.rfind('.')]
                 calibrator = Calibrator(cam_name, self.dir_path)
                 frames = calibrator.extract_images(path)
-                dialog = ImagesDialog(frames)
-                dialog.exec()
-                if dialog.selected_frames:
-                    for i in range(len(frames)):
-                        if dialog.selected_frames[i]:
-                            frame_path = self.dir_path + '\\cameras\\' + cam_name + '\\frames\\%d_%s.jpg' % (i+1, vid_name)
+                count = len(frames)
+                if not self.findChild(QtWidgets.QCheckBox, 'all').isChecked():
+                    dialog = ImagesDialog(frames)
+                    dialog.exec()
+                    selected_frames = dialog.selected_frames
+                else:
+                    selected_frames = [True for _ in range(count)]
+                if selected_frames:
+                    for i in range(count):
+                        if selected_frames[i]:
+                            frame_path = self.dir_path + '\\cameras\\' + cam_name + '\\frames\\%d_%s.jpg' % (
+                            i + 1, vid_name)
                             if not os.path.exists(frame_path):
                                 cv.imwrite(frame_path, frames[i])
+
                     self.clear_list("frames_list")
                     self.collect_data(f'\\cameras\\{cam_name}\\frames', "frames_list")
-        else:
-            print('Error')
 
     def add_frame(self):
         cam = self.get_sel_cam()
         if cam:
             cam_name = cam.text()
-            path = QFileDialog.getOpenFileName(self, "Выберите изображение", "C:\\", "Image Files (*.jpg *.png *.jpeg)")[0]
+            path = \
+            QFileDialog.getOpenFileName(self, "Выберите изображение", "C:\\", "Image Files (*.jpg *.png *.jpeg)")[0]
             if path:
                 frame_path = self.dir_path + '\\cameras\\' + cam_name + '\\frames\\' + path[path.rfind('/') + 1:]
                 shutil.copy(path, frame_path)
                 self.collect_data(f'\\cameras\\{cam_name}\\frames', "frames_list")
-        else:
-            print('Error')
 
     def delete_frame(self, all=False):
         cam = self.get_sel_cam()
@@ -264,21 +266,40 @@ class MainWindow(QMainWindow):
             item = QListWidgetItem(dir)
             list_widget.addItem(item)
 
-    def show_results(self):
-        # path = f'\\cameras\\{cam_name}\\results'
-        None
-
     def calibrate_cam(self):
         cam = self.get_sel_cam()
-        cam_name = cam.text()
         if cam is not None:
-            objpoints = []
-            imgpoints = []
+            cam_name = cam.text()
+            self.thread_dict[cam_name] = []
+            self.thread_dict[cam_name].append(QThread())
             calibrator = Calibrator(cam_name, self.dir_path)
-            calibrator.draw_corners(objpoints, imgpoints)
-            # calibrator.calibrate()
-            # calibrator.undistort()
-            # calibrator.re_projection_error()
+            calibrator.get_frames()
+            calibrator.get_results()
+            self.thread_dict[cam_name].append(calibrator)
+
+            self.thread_dict[cam_name][1].moveToThread(self.thread_dict[cam_name][0])
+
+            self.thread_dict[cam_name][0].started.connect(self.thread_dict[cam_name][1].start)
+
+            self.thread_dict[cam_name][1].finished.connect(self.thread_dict[cam_name][0].quit)
+            self.thread_dict[cam_name][1].finished.connect(self.thread_dict[cam_name][1].deleteLater)
+            self.thread_dict[cam_name][0].finished.connect(self.thread_dict[cam_name][0].deleteLater)
+
+            self.thread_dict[cam_name][1].progress.connect(self.report_progress)  # процесс загрузки
+
+            self.thread_dict[cam_name][0].start()
+
+            self.findChild(QPushButton, 'calibration').setEnabled(False)
+            self.thread_dict[cam_name][0].finished.connect(partial(self.finish_thread, cam_name))
+            # self.thread.finished.connect(
+            #     lambda: self.stepLabel.setText("Long-Running Step: 0")
+            # )
+
+    def finish_thread(self, cam_name):
+        self.thread_dict.pop(cam_name)
+        cam = self.get_sel_cam()
+        if cam and cam_name == cam.text():
+            self.findChild(QPushButton, 'calibration').setEnabled(True)
 
     def show_corners(self):
         self.show_images('corners')
@@ -295,5 +316,10 @@ class MainWindow(QMainWindow):
             for im_name in os.listdir(img_path):
                 img = cv.imread(img_path + '\\' + im_name)
                 frames.append(img)
-            dialog = ImagesDialog(frames, show=True)
-            dialog.exec()
+            if frames:
+                dialog = ImagesDialog(frames, show=True)
+                dialog.exec()
+
+    def report_progress(self, n):
+        statusbar = self.findChild(QtWidgets.QProgressBar, 'statusbar')
+        # print(n)

@@ -105,8 +105,5 @@ class ImagesDialog(QDialog):
         if not self.show:
             self.selected_frames = None
 
-    def select_all(self):
-        super().accept()
-        self.selected_frames = [True for _ in range(self.frames_num)]
 
 
