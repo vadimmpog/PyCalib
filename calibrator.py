@@ -9,11 +9,11 @@ import pickle
 
 class Calibrator(QObject):
     finished = pyqtSignal()
-    progress = pyqtSignal(int)
+    progress = pyqtSignal(int, int)
 
     def __init__(self, cam_name, dir_path, chessboard_size=(7, 6)) -> None:
-        self.frames = [[], []]
         super().__init__()
+        self.frames = [[], []]
         self.cam_name = cam_name
         self.dir_path = dir_path
         self.chessboard_size = chessboard_size
@@ -22,8 +22,8 @@ class Calibrator(QObject):
         self.objp[:, :2] = np.mgrid[0:chessboard_size[0], 0:chessboard_size[1]].T.reshape(-1, 2)
         self.file_name = f'{self.dir_path}\\cameras\\{self.cam_name}\\results'
 
-    def get_frames(self):
-        img_path = f'{self.dir_path}\\cameras\\{self.cam_name}\\frames'
+    def get_frames(self, folder_path):
+        img_path = f'{self.dir_path}\\cameras\\{self.cam_name}\\{folder_path}'
         self.frames[0].clear()
         self.frames[1].clear()
         for im_name in os.listdir(img_path):
@@ -49,8 +49,9 @@ class Calibrator(QObject):
         open_file.close()
 
     def start(self):
-        for i in range(len(self.frames[0])):
-            # print('i', i, len(self.frames[0]), self.frames[1][0], self.cam_name)
+        self.get_frames('frames')
+        length = len(self.frames[0])
+        for i in range(length):
             img = self.frames[0][i]
             # Find the chess board corners
             gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
@@ -67,16 +68,22 @@ class Calibrator(QObject):
                         self.error = error
                         self.main_results = results
 
-            self.progress.emit(i + 1)
-        x = len(self.frames[0]) + 1
-
-        if self.main_results:
-            for i in range(len(self.frames[0])):
-                img = self.frames[0][i]
-                self.undistort(i, img, self.main_results[0], self.main_results[1], self.main_results[4], self.main_results[5])
-                self.progress.emit(x + i + 1)
+            self.progress.emit(i + 1, length)
             self.save_results()
+        self.finished.emit()
 
+    def undistort_video(self, vid_name):
+        path = f"{self.dir_path}\\cameras\\{self.cam_name}\\undistortions\\{vid_name}"
+        if self.main_results:
+            folder_path = f'videos\\{vid_name}'
+            self.get_frames(folder_path)
+            if not os.path.exists(path):
+                os.mkdir(path)
+            length = len(self.frames[0])
+            for i in range(length):
+                img = self.frames[0][i]
+                self.undistort_frame(i, img, vid_name, self.main_results[0], self.main_results[1], self.main_results[4], self.main_results[5])
+                self.progress.emit(i + 1, length)
         self.finished.emit()
 
     def draw_corners(self, i, img, gray, corners):
@@ -100,8 +107,8 @@ class Calibrator(QObject):
         if ret:
             return [mtx, dist, rvecs, tvecs, newcameramtx, roi]
 
-    def undistort(self, i, img, mtx, dist, newcameramtx, roi, crop=False):
-        path = f"{self.dir_path}\\cameras\\{self.cam_name}\\undistortions\\%s_undistortion.jpg" % (self.frames[1][i])
+    def undistort_frame(self, i, img, vid_name, mtx, dist, newcameramtx, roi,crop=False):
+        path = f"{self.dir_path}\\cameras\\{self.cam_name}\\undistortions\\{vid_name}\\und_%s.jpg" % (self.frames[1][i])
         dst = cv.undistort(img, mtx, dist, None, newcameramtx)
         # crop the image
         if crop:
@@ -118,20 +125,26 @@ class Calibrator(QObject):
                 mean_error += error
         return mean_error / len(objpoints)
 
-    def extract_images(self, path_in):
-        frames = []
+    def extract_images(self, path_in, per_sec, cam_name, vid_name, width):
         count = 0
         fvs = FileVideoStream(path_in).start()
+        length = 0
         while fvs.more():
+            count += 1
+            self.progress.emit(count, length)
             frame = fvs.read()
             if frame is not None:
-                count += 1
-                if count == 24:
-                    frame = imutils.resize(frame, width=900)
-                    # frame = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-                    # frame = np.dstack([frame, frame, frame])
-                    frames.append(frame)
-                    count = 0
+                vid_path = f'{self.dir_path}\\cameras\\{cam_name}\\videos\\{vid_name}\\%d_%s.jpg' \
+                           % (count + 1, vid_name)
+                if not os.path.exists(vid_path):
+                    if width:
+                        frame = imutils.resize(frame, width=width)
+                    if per_sec:
+                        if count % 24 == 0:
+                            cv.imwrite(vid_path, frame)
+                    else:
+                        cv.imwrite(vid_path, frame)
+
         fvs.stop()
-        return frames
+        self.finished.emit()
 
