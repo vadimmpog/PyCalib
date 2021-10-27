@@ -126,9 +126,10 @@ class Calibrator(QObject):
         return mean_error / len(objpoints)
 
     def extract_images(self, path_in, per_sec, cam_name, vid_name, width):
+        cap = cv.VideoCapture(path_in)
+        length = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
         count = 0
         fvs = FileVideoStream(path_in).start()
-        length = 0
         while fvs.more():
             count += 1
             self.progress.emit(count, length)

@@ -392,7 +392,7 @@ class MainWindow(QMainWindow):
             self.findChild(QPushButton, 'calibration').setEnabled(True)
             self.findChild(QPushButton, 'undistortion').setEnabled(True)
             self.findChild(QPushButton, 'add_video').setEnabled(True)
-            progressbar = self.findChild(QtWidgets.QProgressBar, 'progressBar').setProperty("value", 0)
+            self.findChild(QtWidgets.QProgressBar, 'progressBar').setProperty("value", 0)
 
     def show_corners(self):
         self.show_images('corners')
