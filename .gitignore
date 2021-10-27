@@ -134,5 +134,10 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+#generated sources
+cameras/
+*.jpg
+
+
 # pytype static type analyzer
 .pytype/
